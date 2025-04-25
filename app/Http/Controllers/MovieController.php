@@ -95,30 +95,41 @@ class MovieController extends Controller
     public function buy($id)
     {
         $movie = Movie::findOrFail($id);
-    
+
         $halls = Hall::with('hallSeats.seat')->get();
-    
+
         $schedules = MovieSchedule::where('movie_id', $movie->id)->get();
-    
+
         return view('movie.buy', compact('movie', 'halls', 'schedules'));
     }
 
     public function buySubmit(Request $request)
     {
+        if (!auth()->check()) {
+            return redirect()->route('login')->with('error', 'Необходимо войти в систему.');
+        }
+
         $validatedData = $request->validate([
             'hall_id' => 'required|exists:halls,id',
             'schedule_id' => 'required|exists:schedules,id',
             'seat_id' => 'required|exists:seats,id',
         ]);
-    
-        $ticket = Ticket::create([
-            'user_id' => auth()->user()->id,
-            'movie_id' => $request->input('movie_id'),
-            'hall_id' => $request->input('hall_id'),
+
+        $isSeatOccupied = Ticket::where([
+            'hall_seat_id' => $request->input('seat_id'),
             'schedule_id' => $request->input('schedule_id'),
-            'seat_id' => $request->input('seat_id'),
+        ])->exists();
+
+        if ($isSeatOccupied) {
+            return back()->with('error', 'Это место уже занято.');
+        }
+
+        Ticket::create([
+            'user_id' => auth()->user()->id,
+            'hall_seat_id' => $request->input('seat_id'),
+            'schedule_id' => $request->input('schedule_id'),
         ]);
-    
+
         return redirect()->route('movies.index')->with('success', 'Билет успешно куплен!');
     }
 }
